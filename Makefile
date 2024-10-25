@@ -26,8 +26,8 @@ format:
 diff:
 	cdk diff
 
-STACKS="--all"
-ARGS=""
+STACKS = --all
+ARGS =
 
 deploy:
 	cdk deploy --outputs-file ./gtfs-realtime-etl-cdk-outputs.json $(STACKS) $(ARGS)

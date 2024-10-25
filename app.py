@@ -6,6 +6,7 @@ from constructs import Construct
 
 from config import gtfs_app_settings
 from database.infrastructure.construct import GTFSRdsConstruct
+from event_bridge.infrastructure.construct import EventBridgeConstruct
 from network.infrastructure.construct import VpcConstruct
 
 app = App()
@@ -36,12 +37,20 @@ else:
     vpc = VpcConstruct(gtfs_stack, "network", stage=gtfs_app_settings.stage_name())
 
 
-features_database = GTFSRdsConstruct(
+gtfs_database = GTFSRdsConstruct(
     gtfs_stack,
     "gtfs-database",
     vpc=vpc.vpc,
     subnet_ids=gtfs_app_settings.subnet_ids,
     stage=gtfs_app_settings.stage_name(),
+)
+
+event_bridge = EventBridgeConstruct(
+    gtfs_stack,
+    "gtfs-event-bridge",
+    stage=gtfs_app_settings.stage_name(),
+    database=gtfs_database,
+    vpc=vpc.vpc,
 )
 
 app.synth()

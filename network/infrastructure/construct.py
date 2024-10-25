@@ -74,5 +74,5 @@ class VpcConstruct(Construct):
             self,
             "vpc-id",
             value=self.vpc.vpc_id,
-            export_name=f"{stack_name}-stac-db-vpc-id",
+            export_name=f"{stack_name}-vpc-id",
         )

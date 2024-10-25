@@ -1,0 +1,6 @@
+{
+  "gtfs-realtime-etl-dev": {
+    "gtfsdatabasegtfssecretname67482572": "arn:aws:secretsmanager:us-west-2:630065096020:secret:gtfs-realtime-etl-dev/features-gtfs-db/f2ae842d-CG6x03",
+    "networkvpcid3E9D121F": "vpc-0a7a682a557b11249"
+  }
+}

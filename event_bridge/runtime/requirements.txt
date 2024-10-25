@@ -1,0 +1,3 @@
+requests
+gtfs-realtime-bindings
+boto3

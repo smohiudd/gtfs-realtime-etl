@@ -20,7 +20,7 @@ class GTFSDBSettings(BaseSettings):
     )
     user: str = Field(
         "gtfs",
-        description="Name of pgstac role for postgres database",
+        description="Name of role for postgres database",
     )
     schema_version: str = Field(
         ...,
