@@ -60,7 +60,7 @@ class GTFSDBSettings(BaseSettings):
         ),
     )
     rds_instance_size: Optional[str] = Field(
-        aws_ec2.InstanceSize.SMALL.value,
+        aws_ec2.InstanceSize.MEDIUM.value,
         description=(
             "The size of the RDS instance "
             "https://docs.aws.amazon.com/cdk/api/v2/python/aws_cdk.aws_ec2/InstanceSize.html"
@@ -107,7 +107,7 @@ class GTFSDBSettings(BaseSettings):
         """model config."""
 
         env_file = ".env"
-        env_prefix = "GTFS_REALTIME_ETL_DB_"
+        env_prefix = "GTFS_RT_DB_"
         extra = "allow"
 
 
