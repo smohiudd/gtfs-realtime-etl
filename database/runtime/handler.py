@@ -108,7 +108,7 @@ def create_user(cursor, username: str, password: str) -> None:
 
 
 def create_permissions(cursor, db_name: str, username: str) -> None:
-    """Add permissions and user-specific pgstac configuration."""
+    """Add permissions and user-specific configuration."""
     cursor.execute(
         sql.SQL(
             "GRANT CONNECT ON DATABASE {db_name} TO {username};"
@@ -121,6 +121,18 @@ def create_permissions(cursor, db_name: str, username: str) -> None:
         ).format(
             db_name=sql.Identifier(db_name),
             username=sql.Identifier(username),
+        )
+    )
+
+
+def create_veh_position_table(cursor) -> None:
+    cursor.execute(
+        sql.SQL(
+            "CREATE TABLE IF NOT EXISTS vehicle_position ( "
+            "id SERIAL PRIMARY KEY, "
+            "trip_id VARCHAR(20), "
+            "time_stamp timestamp without time zone, "
+            "location geography(POINT,4326));"
         )
     )
 
@@ -172,17 +184,30 @@ def handler(event, context):
                     username=user_params["username"],
                 )
 
-        features_db_conninfo = make_conninfo(
+        db_conninfo = make_conninfo(
             dbname=user_params["dbname"],
             user=connection_params["username"],
             password=connection_params["password"],
             host=connection_params["host"],
             port=connection_params["port"],
         )
-        with psycopg.connect(features_db_conninfo, autocommit=True) as conn:
+        with psycopg.connect(db_conninfo, autocommit=True) as conn:
             with conn.cursor() as cur:
                 print("Registering PostGIS ...")
                 register_extensions(cursor=cur)
+
+        gtfs_db_conninfo = make_conninfo(
+            dbname=user_params["dbname"],
+            user=user_params["username"],
+            password=user_params["password"],
+            host=user_params["host"],
+            port=user_params["port"],
+        )
+
+        with psycopg.connect(gtfs_db_conninfo, autocommit=True) as conn:
+            with conn.cursor() as cur:
+                print("Create Vehicle Position Table ...")
+                create_veh_position_table(cursor=cur)
 
     except Exception as e:
         print(f"Unable to bootstrap database with exception={e}")

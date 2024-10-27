@@ -1,6 +1,6 @@
 {
-  "gtfs-realtime-etl-dev": {
-    "gtfsdatabasegtfssecretname67482572": "arn:aws:secretsmanager:us-west-2:630065096020:secret:gtfs-realtime-etl-dev/features-gtfs-db/f2ae842d-CG6x03",
-    "networkvpcid3E9D121F": "vpc-0a7a682a557b11249"
+  "gtfs-realtime-etl-calgary": {
+    "gtfsdatabasegtfssecretname67482572": "arn:aws:secretsmanager:us-west-2:630065096020:secret:gtfs-realtime-etl-calgary/features-gtfs-db/60970d1e-D5HKNk",
+    "networkvpcid3E9D121F": "vpc-0eb3df8f5cdeecea6"
   }
 }

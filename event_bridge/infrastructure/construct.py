@@ -5,9 +5,7 @@ CDK construct for gtfs-realtime-etl Eventbridge scheduler.
 import os
 
 from aws_cdk import (
-    CfnOutput,
     Duration,
-    Stack,
     aws_ec2,
     aws_lambda,
     aws_logs,
@@ -16,6 +14,8 @@ from aws_cdk import (
     aws_sqs,
 )
 from constructs import Construct
+
+from .config import event_bridge_settings
 
 
 class EventBridgeConstruct(Construct):
@@ -32,10 +32,10 @@ class EventBridgeConstruct(Construct):
     ) -> None:
         """Initialized construct."""
         super().__init__(scope, construct_id)
-        stack_name = Stack.of(self).stack_name
 
         lambda_env = {
             "SECRET_NAME": database.postgis.secret.secret_name,
+            "VEH_POSITION_URL": event_bridge_settings.veh_position_url,
         }
 
         lambda_function = aws_lambda.Function(
@@ -71,7 +71,9 @@ class EventBridgeConstruct(Construct):
         aws_scheduler_alpha.Schedule(
             self,
             "Schedule",
-            schedule=aws_scheduler_alpha.ScheduleExpression.rate(Duration.minutes(240)),
+            schedule=aws_scheduler_alpha.ScheduleExpression.rate(
+                Duration.minutes(event_bridge_settings.schedule_mins)
+            ),
             target=target,
         )
 

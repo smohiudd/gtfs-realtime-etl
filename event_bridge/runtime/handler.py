@@ -3,9 +3,13 @@ import json
 import logging
 import os
 import sys
+from datetime import datetime
 
 import boto3
 import psycopg
+import requests
+from google.transit import gtfs_realtime_pb2
+from zoneinfo import ZoneInfo
 
 
 def get_secret(secret_name: str) -> None:
@@ -63,27 +67,35 @@ logger.info("SUCCESS: Connection to RDS for PostGRES instance succeeded")
 
 def handler(event, context):
     """
-    This function creates a new RDS database table and writes records to it
+    This ingest GTFS vehicle position data to the database
     """
 
-    data = {"CustID": 1, "Name": "Saadiq M"}
-    CustID = data["CustID"]
-    Name = data["Name"]
+    position_url = os.environ.get("VEH_POSITION_URL")
 
-    item_count = 0
-    sql_string = "insert into Customer (CustID, Name) values(%s, %s)"
+    feed = gtfs_realtime_pb2.FeedMessage()
+    response = requests.get(position_url)
+    feed.ParseFromString(response.content)
 
-    with conn.cursor() as cur:
-        cur.execute(
-            "create table if not exists Customer ( CustID int NOT NULL, Name varchar(255) NOT NULL, PRIMARY KEY (CustID))"
+    records = [
+        (
+            i.vehicle.trip.trip_id,
+            datetime.fromtimestamp(
+                i.vehicle.timestamp, tz=ZoneInfo("America/Edmonton")
+            ).isoformat(),
+            i.vehicle.position.longitude,
+            i.vehicle.position.latitude,
         )
-        cur.execute(sql_string, (CustID, Name))
-        conn.commit()
-        cur.execute("select * from Customer")
-        logger.info("The following items have been added to the database:")
-        for row in cur:
-            item_count += 1
-            logger.info(row)
-    conn.commit()
+        for i in feed.entity
+    ]
 
-    return "Added %d items to RDS for MySQL table" % (item_count)
+    try:
+        with conn.cursor() as cur:
+            cur.executemany(
+                "INSERT INTO vehicle_position (trip_id, time_stamp, location) VALUES (%s, %s, ST_SetSRID(ST_MakePoint(%s, %s), 4326));",
+                records,
+            )
+            conn.commit()
+            print(f"Inserted {len(records)} vehicle position records")
+
+    except Exception as e:
+        print(f"Unable to ingest vehicle position to database with exception={e}")

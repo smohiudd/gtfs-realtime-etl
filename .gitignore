@@ -164,3 +164,4 @@ cython_debug/
 ## misc 
 cdk.out/
 cdk.context.json
+notebooks
