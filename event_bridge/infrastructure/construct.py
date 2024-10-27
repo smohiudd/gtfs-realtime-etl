@@ -36,6 +36,7 @@ class EventBridgeConstruct(Construct):
         lambda_env = {
             "SECRET_NAME": database.postgis.secret.secret_name,
             "VEH_POSITION_URL": event_bridge_settings.veh_position_url,
+            "TIMEZONE": event_bridge_settings.timezone,
         }
 
         lambda_function = aws_lambda.Function(

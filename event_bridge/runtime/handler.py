@@ -71,6 +71,7 @@ def handler(event, context):
     """
 
     position_url = os.environ.get("VEH_POSITION_URL")
+    timezone = os.environ.get("TIMEZONE")
 
     feed = gtfs_realtime_pb2.FeedMessage()
     response = requests.get(position_url)
@@ -80,7 +81,7 @@ def handler(event, context):
         (
             i.vehicle.trip.trip_id,
             datetime.fromtimestamp(
-                i.vehicle.timestamp, tz=ZoneInfo("America/Edmonton")
+                i.vehicle.timestamp, tz=ZoneInfo(timezone)
             ).isoformat(),
             i.vehicle.position.longitude,
             i.vehicle.position.latitude,

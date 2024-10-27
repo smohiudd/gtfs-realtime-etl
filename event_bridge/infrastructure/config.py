@@ -17,6 +17,11 @@ class EventBridgeSettings(BaseSettings):
         description="How often the event is scheduled",
     )
 
+    timezone: int = Field(
+        "America/Edmonton",
+        description="IANA time zone name. https://data.iana.org/time-zones/tzdb-2021a/zone1970.tab",
+    )
+
     class Config:
         """model config."""
 
