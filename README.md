@@ -15,5 +15,22 @@ This project uses AWS CDK to deploy all resource required to ingest GTFS Realtim
 
 See the [.example.env](.example.env) file for typical environment variables used for a deployment.
 
+### Install Requirements
+
+Create virtual environment and install deployment dependencies:
+
+`pip install -r requirements.txt`
+
+### Run Deployment
+
+Review changes in deployment:
+
+`ckd diff`
+
+Run deployment of resources:
+
+`cdk deploy`
+
 ### Architecture
 ![alt text](./gtfs-realtime-etl-arch-diagram.png)
+
