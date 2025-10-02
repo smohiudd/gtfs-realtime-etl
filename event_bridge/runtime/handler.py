@@ -67,7 +67,12 @@ def handler(event, context):
     
     output_file = "/tmp/positions.parquet"
 
-    io.write_geoparquet_table(pa_table, output_file)
+    io.write_geoparquet_table(
+        pa_table, 
+        output_file,
+        geometry_encoding='point', 
+        primary_geometry_column='geometry'
+    )
     
     logger.info(f"saved parquet file to {output_file}")
 
