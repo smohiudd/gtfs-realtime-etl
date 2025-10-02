@@ -23,6 +23,11 @@ class gtfsAppSettings(BaseSettings):
             "i.e. `dev`, `staging`, `prod`"
         ),
     )
+    
+    region: str = Field(
+        "us-west-2",
+        description="AWS region",
+    )
 
     cdk_default_account: Optional[str] = Field(
         None,

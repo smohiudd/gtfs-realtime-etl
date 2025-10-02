@@ -1,86 +1,49 @@
-import base64
-import json
 import logging
 import os
-import sys
-from datetime import datetime
 
 import boto3
-import psycopg
+from botocore.exceptions import ClientError
+
 import requests
 from google.transit import gtfs_realtime_pb2
 from zoneinfo import ZoneInfo
 
+import pandas as pd
+import pyarrow as pa
+import geoarrow.pyarrow as ga
+from geoarrow.pyarrow import io
 
-def get_secret(secret_name: str) -> None:
-    """Retrieve secrets from AWS Secrets Manager
-
-    Args:
-        secret_name (str): name of aws secrets manager secret containing database connection secrets
-
-    Returns:
-        secrets (dict): decrypted secrets in dict
-    """
-
-    # Create a Secrets Manager client
-    session = boto3.session.Session(region_name=os.environ.get("AWS_REGION"))
-    client = session.client(service_name="secretsmanager")
-
-    # In this sample we only handle the specific exceptions for the 'GetSecretValue' API.
-    # See https://docs.aws.amazon.com/secretsmanager/latest/apireference/API_GetSecretValue.html
-    # We rethrow the exception by default.
-
-    get_secret_value_response = client.get_secret_value(
-        SecretId=os.environ.get("SECRET_NAME")
-    )
-
-    # Decrypts secret using the associated KMS key.
-    # Depending on whether the secret is a string or binary, one of these fields will be populated.
-    if "SecretString" in get_secret_value_response:
-        return json.loads(get_secret_value_response["SecretString"])
-    else:
-        return json.loads(base64.b64decode(get_secret_value_response["SecretBinary"]))
-
-
-secret_name = os.environ.get("SECRET_NAME")
-conn_secrets = get_secret(secret_name)
+import datetime as dt
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-# create the database connection outside of the handler to allow connections to be
-# re-used by subsequent function invocations.
-try:
-    conn = psycopg.connect(
-        host=conn_secrets["host"],
-        dbname=conn_secrets["dbname"],
-        user=conn_secrets["username"],
-        password=conn_secrets["password"],
-    )
-except Exception as e:
-    logger.error("ERROR: Unexpected error: Could not connect to RDS postgis instance.")
-    logger.error(e)
-    sys.exit(1)
-
-logger.info("SUCCESS: Connection to RDS for PostGRES instance succeeded")
-
+s3 = boto3.client("s3", region_name="us-west-2") 
+logger.info(f"loaded s3 client")
 
 def handler(event, context):
     """
-    This ingest GTFS vehicle position data to the database
+    This saves GTFS vehicle position data to S3 bucket
     """
 
     position_url = os.environ.get("VEH_POSITION_URL")
     timezone = os.environ.get("TIMEZONE")
+    destination_bucket = os.environ.get("DESTINATION_BUCKET")
 
     feed = gtfs_realtime_pb2.FeedMessage()
-    response = requests.get(position_url)
+    try:
+        response = requests.get(position_url)
+        response.raise_for_status()
+    except requests.RequestException as exc:
+        logger.exception("Failed to fetch vehicle positions from %s", position_url)
+        raise
+    
     feed.ParseFromString(response.content)
 
     records = [
         (
             i.vehicle.trip.trip_id,
-            datetime.fromtimestamp(
+            dt.datetime.fromtimestamp(
                 i.vehicle.timestamp, tz=ZoneInfo(timezone)
             ).isoformat(),
             i.vehicle.position.longitude,
@@ -88,15 +51,32 @@ def handler(event, context):
         )
         for i in feed.entity
     ]
+    
+    logger.info(f"Discovered {len(records)} vehicle position records")
+    
+    columns = ['trip_id', 'datetime', 'lon', 'lat']
+    df = pd.DataFrame(records, columns=columns)
+    
+    df['geometry_wkt'] = df.apply(lambda x: f"POINT ({x['lon']} {x['lat']})",axis=1)
 
+    pa_table = pa.Table.from_pandas(df, preserve_index=False)
+    geom_array = ga.as_geoarrow(ga.with_crs(pa_table["geometry_wkt"].combine_chunks(), ga.OGC_CRS84))
+    
+    pa_table=pa_table.append_column("geometry", geom_array)
+    pa_table = pa_table.drop_columns(['lon', 'lat','geometry_wkt'])
+    
+    output_file = "/tmp/positions.parquet"
+
+    io.write_geoparquet_table(pa_table, output_file)
+    
+    logger.info(f"saved parquet file to {output_file}")
+
+    latest_timestamp = dt.datetime.now(tz=ZoneInfo(timezone))
+    object_key = f"positions/{latest_timestamp.strftime('%Y')}/{latest_timestamp.strftime('%m')}/{latest_timestamp.strftime('%d')}/{latest_timestamp.strftime('%H%M%S')}.parquet"
+    
     try:
-        with conn.cursor() as cur:
-            cur.executemany(
-                "INSERT INTO vehicle_position (trip_id, time_stamp, location) VALUES (%s, %s, ST_SetSRID(ST_MakePoint(%s, %s), 4326));",
-                records,
-            )
-            conn.commit()
-            print(f"Inserted {len(records)} vehicle position records")
+        logger.info("Uploading %s to bucket %s", object_key, destination_bucket)
+        s3.upload_file(output_file, destination_bucket, object_key)
+    except ClientError as e:
+        logging.error(e)
 
-    except Exception as e:
-        print(f"Unable to ingest vehicle position to database with exception={e}")
