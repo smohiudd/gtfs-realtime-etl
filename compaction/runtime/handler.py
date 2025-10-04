@@ -6,9 +6,7 @@ https://github.com/aws-samples/s3-small-object-compaction
 
 import os
 import logging
-import datetime
 import boto3
-import pathlib
 from datetime import timedelta, datetime
 
 import pyarrow.dataset as ds
@@ -66,13 +64,11 @@ def merge_objects_from_s3(s3_bucket, date):
 
     s3_uris = []
     for object in objects:
-        s3_uris.append(f"{s3_bucket}/{object['Prefix']}/{object['Key']}")
+        s3_uris.append(f"{s3_bucket}/{object['Key']}")
 
     print(
         f"Found {len(s3_uris)} objects for {date.strftime('%Y')}/{date.strftime('%m')}/{date.strftime('%d')}"
     )
-    # print the first 5 s3_uris
-    print(s3_uris[:5])
 
     dataset = ds.dataset(
         s3_uris,
@@ -87,7 +83,7 @@ def merge_objects_from_s3(s3_bucket, date):
         dataset,
         "tmp",
         format="parquet",
-        basename_template=f"{date.strftime('%d')}_{{i}}.parquet",
+        basename_template=f"positions_{{i}}.parquet",
         min_rows_per_group=min_rows_per_group,
         max_rows_per_group=max_rows_per_group,
         existing_data_behavior="overwrite_or_ignore",
@@ -123,7 +119,7 @@ def handler(event, context):
     s3_bucket = event.get("s3_bucket")
     duration = event.get("duration")
 
-    dates = get_dates_in_range(duration)
+    dates = get_dates_in_range(int(duration))
 
     for date in dates:
         merge_objects_from_s3(s3_bucket, date)

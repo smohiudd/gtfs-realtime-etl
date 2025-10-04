@@ -43,8 +43,8 @@ class CompactionConstruct(Construct):
             vpc=vpc,
             handler="handler.handler",
             timeout=Duration.minutes(15),
-            ephemeral_storage_size=Size.mebibytes(1024),
-            memory_size=1024,
+            ephemeral_storage_size=Size.mebibytes(2048),
+            memory_size=2048,
             tracing=aws_lambda.Tracing.ACTIVE,
             log_retention=aws_logs.RetentionDays.ONE_WEEK,
         )
@@ -80,7 +80,7 @@ class CompactionConstruct(Construct):
                 event=events.RuleTargetInput.from_object(
                     {
                         "s3_bucket": compaction_settings.destination_bucket,
-                        "duration": compaction_settings.previous_days,
+                        "duration": int(compaction_settings.previous_days),
                     }
                 ),
             )
