@@ -19,7 +19,6 @@ class VpcConstruct(Construct):
         self,
         scope: Construct,
         construct_id: str,
-        stage: str,
         vpc_id: Optional[str] = None,
     ) -> None:
         """Initialized construct."""

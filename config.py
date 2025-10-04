@@ -30,11 +30,11 @@ class gtfsAppSettings(BaseSettings):
     )
 
     cdk_default_account: Optional[str] = Field(
-        None,
+        "539042711016",
         description="When deploying from a local machine the AWS account id is required to deploy to an exiting VPC",
     )
     cdk_default_region: Optional[str] = Field(
-        None,
+        "us-west-2",
         description="When deploying from a local machine the AWS region id is required to deploy to an exiting VPC",
     )
 

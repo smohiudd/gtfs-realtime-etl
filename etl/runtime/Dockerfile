@@ -4,10 +4,10 @@ RUN dnf install -y gcc-c++
 
 WORKDIR /tmp
 
-COPY event_bridge/runtime /tmp/event_bridge
+COPY etl/runtime /tmp/etl
 
-RUN pip install -r /tmp/event_bridge/requirements.txt -t /asset
-RUN rm -rf /tmp/event_bridge
+RUN pip install -r /tmp/etl/requirements.txt -t /asset
+RUN rm -rf /tmp/etl
 
 # Reduce package size and remove useless files
 RUN cd /asset && find . -type f -name '*.pyc' | while read f; do n=$(echo $f | sed 's/__pycache__\///' | sed 's/.cpython-[0-9]*//'); cp $f $n; done;
@@ -16,6 +16,6 @@ RUN cd /asset && find . -type f -a -name '*.py' -print0 | xargs -0 rm -f
 RUN find /asset -type d -a -name 'tests' -print0 | xargs -0 rm -rf
 RUN rm -rdf /asset/numpy/doc/ /asset/boto3* /asset/botocore* /asset/bin /asset/Misc
 
-COPY event_bridge/runtime/handler.py /asset/handler.py
+COPY etl/runtime/handler.py /asset/handler.py
 
 CMD ["echo", "hello world"]

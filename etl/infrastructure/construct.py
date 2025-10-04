@@ -13,10 +13,11 @@ from aws_cdk import (
     aws_scheduler_targets_alpha,
     aws_iam,
     aws_sqs,
+    aws_ec2
 )
 from constructs import Construct
 
-from .config import event_bridge_settings
+from .config import etl_settings
 
 class EventBridgeConstruct(Construct):
     """CDK construct for gtfs-realtime-etl EventBridge Scheduler."""
@@ -25,25 +26,22 @@ class EventBridgeConstruct(Construct):
         self,
         scope: Construct,
         construct_id: str,
-        stage: str,
-        region: str,
-        vpc,
+        vpc: aws_ec2.Vpc,
         code_dir: str = "./",
     ) -> None:
         """Initialized construct."""
         super().__init__(scope, construct_id)
 
         lambda_env = {
-            "VEH_POSITION_URL": event_bridge_settings.veh_position_url,
-            "TIMEZONE": event_bridge_settings.timezone,
-            "DESTINATION_BUCKET": event_bridge_settings.destination_bucket,
+            "VEH_POSITION_URL": etl_settings.veh_position_url,
+            "TIMEZONE": etl_settings.timezone,
+            "DESTINATION_BUCKET": etl_settings.destination_bucket,
         }
         
         destination_bucket = aws_s3.Bucket.from_bucket_name(
             self, "DestinationBucket", 
-            event_bridge_settings.destination_bucket
+            etl_settings.destination_bucket
         )
-        
         
         lambda_function = aws_lambda.Function(
             self,
@@ -52,22 +50,25 @@ class EventBridgeConstruct(Construct):
             runtime=aws_lambda.Runtime.PYTHON_3_12,
             code=aws_lambda.Code.from_docker_build(
                 path=os.path.abspath(code_dir),
-                file="event_bridge/runtime/Dockerfile",
+                file="etl/runtime/Dockerfile",
             ),
             vpc=vpc,
             environment=lambda_env,
             allow_public_subnet=True,
             log_retention=aws_logs.RetentionDays.ONE_WEEK,
             tracing=aws_lambda.Tracing.ACTIVE,
-            memory_size=1024
+            memory_size=1024,
+            timeout=Duration.minutes(1),
         )
         
         lambda_function.add_to_role_policy(aws_iam.PolicyStatement(
             sid="AllowLambdaToWriteToS3",
-            actions=["s3:*"],
+            actions=["s3:PutObject"],
             resources=[destination_bucket.arn_for_objects("*"), destination_bucket.bucket_arn],
             effect=aws_iam.Effect.ALLOW,
         ))
+
+        destination_bucket.grant_write(lambda_function)
     
         dlq = aws_sqs.Queue(self, "DLQ", queue_name="gtfs-realtime-etl-dlq")
 
@@ -82,7 +83,7 @@ class EventBridgeConstruct(Construct):
             self,
             "Schedule",
             schedule=aws_scheduler_alpha.ScheduleExpression.rate(
-                Duration.minutes(event_bridge_settings.schedule_mins)
+                Duration.minutes(etl_settings.schedule_mins)
             ),
             target=target,
         )

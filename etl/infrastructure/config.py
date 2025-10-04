@@ -4,7 +4,7 @@ from pydantic import Field
 from pydantic_settings import BaseSettings
 
 
-class EventBridgeSettings(BaseSettings):
+class ETLSettings(BaseSettings):
     """Application settings."""
     
     veh_position_url: str = Field(
@@ -35,4 +35,4 @@ class EventBridgeSettings(BaseSettings):
         extra = "allow"
 
 
-event_bridge_settings = EventBridgeSettings()
+etl_settings = ETLSettings()
