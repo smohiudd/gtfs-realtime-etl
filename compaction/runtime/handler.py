@@ -8,6 +8,7 @@ import os
 import logging
 import boto3
 from datetime import timedelta, datetime
+from zoneinfo import ZoneInfo
 
 import pyarrow.dataset as ds
 import geoarrow.pyarrow as ga
@@ -104,8 +105,8 @@ def merge_objects_from_s3(s3_bucket, date):
             print(f"Uploaded {file} to {s3_bucket}")
 
 
-def get_dates_in_range(duration):
-    start_date = datetime.now() - timedelta(days=duration)
+def get_dates_in_range(duration, timezone):
+    start_date = datetime.now(tz=ZoneInfo(timezone)) - timedelta(days=duration)
     dates = []
     for n in range(duration):
         date = start_date + timedelta(days=n)
@@ -120,8 +121,9 @@ def handler(event, context):
 
     s3_bucket = event.get("s3_bucket")
     duration = event.get("duration")
+    timezone = event.get("timezone")
 
-    dates = get_dates_in_range(int(duration))
+    dates = get_dates_in_range(int(duration), timezone)
 
     for date in dates:
         merge_objects_from_s3(s3_bucket, date)

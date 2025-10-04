@@ -86,6 +86,7 @@ class CompactionConstruct(Construct):
                     {
                         "s3_bucket": compaction_settings.destination_bucket,
                         "duration": int(compaction_settings.previous_days),
+                        "timezone": compaction_settings.timezone,
                     }
                 ),
             )
