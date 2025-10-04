@@ -82,7 +82,7 @@ def merge_objects_from_s3(s3_bucket, date):
 
     ds.write_dataset(
         dataset,
-        "tmp",
+        "/tmp",
         format="parquet",
         basename_template=f"positions_{{i}}.parquet",
         min_rows_per_group=min_rows_per_group,
@@ -90,6 +90,7 @@ def merge_objects_from_s3(s3_bucket, date):
         existing_data_behavior="overwrite_or_ignore",
         use_threads=True,
         filesystem=fs.LocalFileSystem(),
+        create_dir=False
     )
 
     # loop through tmp and upload to s3
