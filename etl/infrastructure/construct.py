@@ -13,11 +13,12 @@ from aws_cdk import (
     aws_scheduler_targets_alpha,
     aws_iam,
     aws_sqs,
-    aws_ec2
+    aws_ec2,
 )
 from constructs import Construct
 
 from .config import etl_settings
+
 
 class EventBridgeConstruct(Construct):
     """CDK construct for gtfs-realtime-etl EventBridge Scheduler."""
@@ -37,12 +38,11 @@ class EventBridgeConstruct(Construct):
             "TIMEZONE": etl_settings.timezone,
             "DESTINATION_BUCKET": etl_settings.destination_bucket,
         }
-        
+
         destination_bucket = aws_s3.Bucket.from_bucket_name(
-            self, "DestinationBucket", 
-            etl_settings.destination_bucket
+            self, "DestinationBucket", etl_settings.destination_bucket
         )
-        
+
         lambda_function = aws_lambda.Function(
             self,
             "lambda",
@@ -60,16 +60,21 @@ class EventBridgeConstruct(Construct):
             memory_size=1024,
             timeout=Duration.minutes(1),
         )
-        
-        lambda_function.add_to_role_policy(aws_iam.PolicyStatement(
-            sid="AllowLambdaToWriteToS3",
-            actions=["s3:PutObject"],
-            resources=[destination_bucket.arn_for_objects("*"), destination_bucket.bucket_arn],
-            effect=aws_iam.Effect.ALLOW,
-        ))
+
+        lambda_function.add_to_role_policy(
+            aws_iam.PolicyStatement(
+                sid="AllowLambdaToWriteToS3",
+                actions=["s3:PutObject"],
+                resources=[
+                    destination_bucket.arn_for_objects("*"),
+                    destination_bucket.bucket_arn,
+                ],
+                effect=aws_iam.Effect.ALLOW,
+            )
+        )
 
         destination_bucket.grant_write(lambda_function)
-    
+
         dlq = aws_sqs.Queue(self, "DLQ", queue_name="gtfs-realtime-etl-dlq")
 
         target = aws_scheduler_targets_alpha.LambdaInvoke(

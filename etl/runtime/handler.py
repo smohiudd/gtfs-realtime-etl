@@ -18,8 +18,9 @@ import datetime as dt
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-s3 = boto3.client("s3", region_name="us-west-2") 
+s3 = boto3.client("s3", region_name="us-west-2")
 logger.info(f"loaded s3 client")
+
 
 def handler(event, context):
     """
@@ -37,7 +38,7 @@ def handler(event, context):
     except requests.RequestException as exc:
         logger.exception("Failed to fetch vehicle positions from %s", position_url)
         raise
-    
+
     feed.ParseFromString(response.content)
 
     records = [
@@ -51,37 +52,38 @@ def handler(event, context):
         )
         for i in feed.entity
     ]
-    
+
     logger.info(f"Discovered {len(records)} vehicle position records")
-    
-    columns = ['trip_id', 'datetime', 'lon', 'lat']
+
+    columns = ["trip_id", "datetime", "lon", "lat"]
     df = pd.DataFrame(records, columns=columns)
-    
-    df['geometry_wkt'] = df.apply(lambda x: f"POINT ({x['lon']} {x['lat']})",axis=1)
+
+    df["geometry_wkt"] = df.apply(lambda x: f"POINT ({x['lon']} {x['lat']})", axis=1)
 
     pa_table = pa.Table.from_pandas(df, preserve_index=False)
-    geom_array = ga.as_geoarrow(ga.with_crs(pa_table["geometry_wkt"].combine_chunks(), ga.OGC_CRS84))
-    
-    pa_table=pa_table.append_column("geometry", geom_array)
-    pa_table = pa_table.drop_columns(['lon', 'lat','geometry_wkt'])
-    
+    geom_array = ga.as_geoarrow(
+        ga.with_crs(pa_table["geometry_wkt"].combine_chunks(), ga.OGC_CRS84)
+    )
+
+    pa_table = pa_table.append_column("geometry", geom_array)
+    pa_table = pa_table.drop_columns(["lon", "lat", "geometry_wkt"])
+
     output_file = "/tmp/positions.parquet"
 
     io.write_geoparquet_table(
-        pa_table, 
+        pa_table,
         output_file,
-        geometry_encoding='point', 
-        primary_geometry_column='geometry'
+        geometry_encoding="point",
+        primary_geometry_column="geometry",
     )
-    
+
     logger.info(f"saved parquet file to {output_file}")
 
     latest_timestamp = dt.datetime.now(tz=ZoneInfo(timezone))
     object_key = f"positions_raw/{latest_timestamp.strftime('%Y')}/{latest_timestamp.strftime('%m')}/{latest_timestamp.strftime('%d')}/{latest_timestamp.strftime('%H%M%S')}.parquet"
-    
+
     try:
         logger.info("Uploading %s to bucket %s", object_key, destination_bucket)
         s3.upload_file(output_file, destination_bucket, object_key)
     except ClientError as e:
         logging.error(e)
-

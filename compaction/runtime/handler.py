@@ -19,7 +19,7 @@ s3fs = fs.S3FileSystem(
     access_key=os.environ.get("AWS_ACCESS_KEY_ID"),
     secret_key=os.environ.get("AWS_SECRET_ACCESS_KEY"),
     session_token=os.environ.get("AWS_SESSION_TOKEN"),
-    region=os.environ.get("AWS_DEFAULT_REGION")
+    region=os.environ.get("AWS_DEFAULT_REGION"),
 )
 
 logger = logging.getLogger()

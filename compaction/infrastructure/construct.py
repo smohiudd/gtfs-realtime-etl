@@ -15,7 +15,7 @@ from aws_cdk import (
     aws_events_targets as targets,
     aws_iam as iam,
     aws_logs,
-    aws_ec2
+    aws_ec2,
 )
 from constructs import Construct
 
@@ -24,14 +24,19 @@ from .config import compaction_settings
 
 class CompactionConstruct(Construct):
     def __init__(
-        self, scope: Construct, construct_id: str, vpc: aws_ec2.Vpc, code_dir: str = "./", **kwargs
+        self,
+        scope: Construct,
+        construct_id: str,
+        vpc: aws_ec2.Vpc,
+        code_dir: str = "./",
+        **kwargs,
     ) -> None:
         super().__init__(scope, construct_id, **kwargs)
 
         destination_s3_bucket = s3.Bucket.from_bucket_name(
             self, "DestinationBucket", compaction_settings.destination_bucket
         )
-        
+
         compactionFunction = aws_lambda.Function(
             self,
             "standaloneCompactFunction",
