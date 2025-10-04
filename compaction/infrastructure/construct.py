@@ -39,7 +39,7 @@ class CompactionConstruct(Construct):
 
         compactionFunction = aws_lambda.Function(
             self,
-            "standaloneCompactFunction",
+            "CompactFunction",
             runtime=aws_lambda.Runtime.PYTHON_3_12,
             code=aws_lambda.Code.from_docker_build(
                 path=os.path.abspath(code_dir),
@@ -72,8 +72,8 @@ class CompactionConstruct(Construct):
         # Uncomment to add EventBridge rule for standalone Lambda schedule
         lambdaTriggerRule = events.Rule(
             self,
-            "compactionRuleStandaloneLambda",
-            enabled=False,
+            "compactionRuleLambda",
+            enabled=True,
             schedule=events.Schedule.rate(
                 Duration.days(int(compaction_settings.previous_days))
             ),

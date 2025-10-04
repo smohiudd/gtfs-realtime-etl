@@ -76,6 +76,7 @@ def merge_objects_from_s3(s3_bucket, date):
         filesystem=s3fs,
     )
 
+    # https://duckdb.org/docs/stable/guides/performance/file_formats.html
     min_rows_per_group = 15360
     max_rows_per_group = 122880
 
