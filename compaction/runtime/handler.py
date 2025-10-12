@@ -10,8 +10,8 @@ import boto3
 from datetime import timedelta, datetime
 from zoneinfo import ZoneInfo
 
-import pyarrow.dataset as ds
-import geoarrow.pyarrow as ga
+import pyarrow.parquet as pq
+
 from pyarrow import fs
 
 
@@ -71,27 +71,36 @@ def merge_objects_from_s3(s3_bucket, date):
         f"Found {len(s3_uris)} objects for {date.strftime('%Y')}/{date.strftime('%m')}/{date.strftime('%d')}"
     )
 
-    dataset = ds.dataset(
-        s3_uris,
-        format="parquet",
-        filesystem=s3fs,
+    metadata = pq.read_metadata(s3_uris[0], filesystem=s3fs).metadata #get the file level metadata since GeoParquetWriter doesn't write table level metadata
+
+    dataset = (
+        pq.ParquetDataset(
+            s3_uris,
+            filesystem=s3fs,
+        )
+        .read()
+        .sort_by("geohash")
     )
 
+    schema = dataset.schema.with_metadata(metadata)
+
     # https://duckdb.org/docs/stable/guides/performance/file_formats.html
-    min_rows_per_group = 15360
+    min_rows_per_group = 61440
     max_rows_per_group = 122880
 
-    ds.write_dataset(
+    pq.write_to_dataset(
         dataset,
         "/tmp",
-        format="parquet",
+        schema=schema,
         basename_template=f"positions_{{i}}.parquet",
         min_rows_per_group=min_rows_per_group,
         max_rows_per_group=max_rows_per_group,
         existing_data_behavior="overwrite_or_ignore",
         use_threads=True,
+        preserve_order=True,
         filesystem=fs.LocalFileSystem(),
-        create_dir=False
+        create_dir=False,
+        compression="zstd",
     )
 
     # loop through tmp and upload to s3

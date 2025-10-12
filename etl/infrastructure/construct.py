@@ -28,6 +28,7 @@ class EventBridgeConstruct(Construct):
         scope: Construct,
         construct_id: str,
         vpc: aws_ec2.Vpc,
+        stage: str,
         code_dir: str = "./",
     ) -> None:
         """Initialized construct."""

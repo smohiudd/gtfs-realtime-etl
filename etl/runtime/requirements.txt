@@ -1,5 +1,6 @@
-pandas
 pyarrow
 geoarrow-pyarrow
+geoarrow-rust-io
 requests
 gtfs-realtime-bindings
+pygeohash

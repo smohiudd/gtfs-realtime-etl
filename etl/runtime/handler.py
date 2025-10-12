@@ -1,6 +1,7 @@
 import logging
 import os
 import json
+import array
 
 import boto3
 from botocore.exceptions import ClientError
@@ -9,10 +10,14 @@ import requests
 from google.transit import gtfs_realtime_pb2
 from zoneinfo import ZoneInfo
 
-import pandas as pd
 import pyarrow as pa
-from pyarrow import parquet
+
 import geoarrow.pyarrow as ga
+
+from geoarrow.rust.io import GeoParquetWriter
+from geoarrow.rust.io.enums import GeoParquetEncoding
+
+import pygeohash as pgh
 
 import datetime as dt
 
@@ -62,44 +67,11 @@ def handler(event, context):
                     "bearing": v.position.bearing if v.HasField("position") else None,
                     "speed": v.position.speed if v.HasField("position") else None,
                     # timestamp
-                    "timestamp": dt.datetime.fromtimestamp(
-                        v.timestamp, tz=ZoneInfo(timezone)
-                    ).isoformat()
-                    if v.HasField("timestamp")
-                    else None,
+                    "timestamp": v.timestamp if v.HasField("timestamp") else None,
                 }
             )
 
     logger.info(f"Discovered {len(records)} vehicle position records")
-
-    df = pd.DataFrame(records)
-    df = df.replace(0.0, pd.NA)
-    df = df.replace("", pd.NA)
-    dtypes_mapping = {
-        "trip_id": "string",
-        "route_id": "string",
-        "direction_id": "string",
-        "vehicle_id": "string",
-        "latitude": "Float64",
-        "longitude": "Float64",
-        "bearing": "Float64",
-        "speed": "Float64",
-        "timestamp": pd.DatetimeTZDtype(unit="ns", tz=timezone),
-    }
-
-    df = df.astype(dtypes_mapping)
-
-    geo_meta = {
-        "version": "1.1.0",
-        "primary_column": "geometry",
-        "columns": {
-            "geometry": {
-                "encoding": "WKB",
-                "geometry_types": ["Point"],
-                "crs": "EPSG:4326",
-            }
-        },
-    }
 
     schema = pa.schema(
         [
@@ -111,20 +83,44 @@ def handler(event, context):
             pa.field("longitude", pa.float64()),
             pa.field("bearing", pa.float64()),
             pa.field("speed", pa.float64()),
-            pa.field("timestamp", pa.timestamp("s", tz=timezone)),
+            pa.field("timestamp", pa.int64()),
         ],
     )
 
-    schema = schema.with_metadata({"geo": json.dumps(geo_meta)})
+    pa_table = pa.Table.from_pylist(records, schema=schema)
 
-    pa_table = pa.Table.from_pandas(df, preserve_index=False, schema=schema)
+    # parse timestamp
 
-    geom_field = pa.field(
+    parsed_time = pa.array(
+        [dt.datetime.fromtimestamp(t, tz=ZoneInfo(timezone)) for t in pa_table["timestamp"].to_pylist()],
+        type=pa.timestamp("ns", tz=timezone),
+    )
+
+    pa_table = pa_table.set_column(
+        pa_table.schema.get_field_index("timestamp"), "timestamp", parsed_time
+    )
+
+    # geohash
+
+    geohash_field = pa.field("geohash", pa.string())
+
+    latitudes = pa_table["latitude"].to_pylist()
+    longitudes = pa_table["longitude"].to_pylist()
+
+    geohashes = [
+        pgh.encode(lat, lon, precision=7) for lat, lon in zip(latitudes, longitudes)
+    ]
+
+    pa_table = pa_table.append_column(geohash_field, pa.array(geohashes))
+
+    # geometry
+
+    geom_field = geom_field = pa.field(
         "geometry", ga.wkb(), metadata={b"ARROW:extension:name": b"geoarrow.wkb"}
     )
 
     points = ga.point().from_geobuffers(
-        None, df["longitude"].to_numpy(), df["latitude"].to_numpy()
+        None, array.array("d", longitudes), array.array("d", latitudes)
     )
 
     wkb_array = ga.as_wkb(ga.with_crs(points, ga.OGC_CRS84))
@@ -133,7 +129,15 @@ def handler(event, context):
 
     output_file = "/tmp/positions.parquet"
 
-    parquet.write_table(pa_table, output_file)
+    writer = GeoParquetWriter(
+        output_file,
+        pa_table.schema, 
+        encoding=GeoParquetEncoding.WKB,
+        compression="uncompressed",
+        generate_covering=True,
+    )
+    writer.write_table(pa_table)
+    writer.close()
 
     logger.info(f"saved parquet file to {output_file}")
 

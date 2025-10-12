@@ -1,6 +1,7 @@
 from aws_cdk import (
     App,
     Stack,
+    Tags,
 )
 from constructs import Construct
 
@@ -22,10 +23,9 @@ class GTFSETLStack(Stack):
 
 gtfs_etl_stack = GTFSETLStack(
     app,
-    f"{gtfs_app_settings.app_name}",
+    f"{gtfs_app_settings.app_name}-{gtfs_app_settings.stage}",
     env=gtfs_app_settings.cdk_env(),
 )
-
 
 vpc = VpcConstruct(
     gtfs_etl_stack,
@@ -37,12 +37,21 @@ gtfs_etl = EventBridgeConstruct(
     gtfs_etl_stack,
     "gtfs-etl",
     vpc=vpc.vpc,
+    stage=gtfs_app_settings.stage,
 )
 
 compaction = CompactionConstruct(
     gtfs_etl_stack,
     "compaction",
     vpc=vpc.vpc,
+    stage=gtfs_app_settings.stage,
 )
+
+for key, value in {
+    "Project": gtfs_app_settings.app_name,
+    "Stack": gtfs_app_settings.stage_name(),
+}.items():
+    if value:
+        Tags.of(app).add(key=key, value=value)
 
 app.synth()
