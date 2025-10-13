@@ -71,7 +71,9 @@ def merge_objects_from_s3(s3_bucket, date):
         f"Found {len(s3_uris)} objects for {date.strftime('%Y')}/{date.strftime('%m')}/{date.strftime('%d')}"
     )
 
-    metadata = pq.read_metadata(s3_uris[0], filesystem=s3fs).metadata #get the file level metadata since GeoParquetWriter doesn't write table level metadata
+    metadata = pq.read_metadata(
+        s3_uris[0], filesystem=s3fs
+    ).metadata  # get the file level metadata since GeoParquetWriter doesn't write table level metadata
 
     dataset = (
         pq.ParquetDataset(
@@ -101,6 +103,7 @@ def merge_objects_from_s3(s3_bucket, date):
         filesystem=fs.LocalFileSystem(),
         create_dir=False,
         compression="zstd",
+        compression_level=3,
     )
 
     # loop through tmp and upload to s3
@@ -115,7 +118,7 @@ def merge_objects_from_s3(s3_bucket, date):
 
 
 def get_dates_in_range(duration, timezone):
-    start_date = datetime.now(tz=ZoneInfo(timezone)) - timedelta(days=duration)
+    start_date = datetime.now() - timedelta(days=duration)
     dates = []
     for n in range(duration):
         date = start_date + timedelta(days=n)

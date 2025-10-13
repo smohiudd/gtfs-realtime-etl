@@ -12,8 +12,8 @@ class ETLSettings(BaseSettings):
         description="GTFS realtime vehicle position feed url",
     )
 
-    schedule_mins: int = Field(
-        1,
+    schedule_seconds: int = Field(
+        60,
         description="How often the event is scheduled",
     )
 

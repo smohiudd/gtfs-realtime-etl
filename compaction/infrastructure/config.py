@@ -16,7 +16,7 @@ class CompactionSettings(BaseSettings):
         1,
         description="Number of days to compact",
     )
-    
+
     timezone: str = Field(
         "America/Edmonton",
         description="IANA time zone name. https://data.iana.org/time-zones/tzdb-2021a/zone1970.tab",

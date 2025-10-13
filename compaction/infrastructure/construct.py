@@ -52,7 +52,7 @@ class CompactionConstruct(Construct):
             ephemeral_storage_size=Size.mebibytes(2048),
             memory_size=2048,
             tracing=aws_lambda.Tracing.ACTIVE,
-            log_retention=aws_logs.RetentionDays.ONE_WEEK,
+            log_retention=aws_logs.RetentionDays.ONE_MONTH,
         )
 
         compactionFunction.grant_invoke(iam.ServicePrincipal("events.amazonaws.com"))

@@ -39,7 +39,7 @@ def handler(event, context):
 
     feed = gtfs_realtime_pb2.FeedMessage()
     try:
-        response = requests.get(position_url)
+        response = requests.get(position_url, timeout=5)
         response.raise_for_status()
     except requests.RequestException as exc:
         logger.exception("Failed to fetch vehicle positions from %s", position_url)
@@ -92,7 +92,10 @@ def handler(event, context):
     # parse timestamp
 
     parsed_time = pa.array(
-        [dt.datetime.fromtimestamp(t, tz=ZoneInfo(timezone)) for t in pa_table["timestamp"].to_pylist()],
+        [
+            dt.datetime.fromtimestamp(t, tz=ZoneInfo(timezone))
+            for t in pa_table["timestamp"].to_pylist()
+        ],
         type=pa.timestamp("ns", tz=timezone),
     )
 
@@ -131,7 +134,7 @@ def handler(event, context):
 
     writer = GeoParquetWriter(
         output_file,
-        pa_table.schema, 
+        pa_table.schema,
         encoding=GeoParquetEncoding.WKB,
         compression="uncompressed",
         generate_covering=True,

@@ -14,10 +14,100 @@ from aws_cdk import (
     aws_iam,
     aws_sqs,
     aws_ec2,
+    aws_stepfunctions as stepfunctions,
+    aws_stepfunctions_tasks as stepfunction_tasks,
+    RemovalPolicy,
 )
 from constructs import Construct
 
 from .config import etl_settings
+
+
+class SubMinuteStepFunctionConstruct(Construct):
+    """CDK construct for gtfs-realtime-etl Sub Minute Lambda Trigger.
+
+    Sub Minute Lambda Trigger
+    https://github.com/MauriceBrg/snippets/blob/main/sub-minute-lambda-trigger/sub_minute_lambda_trigger/infrastructure.py
+
+    """
+
+    def __init__(
+        self,
+        scope: Construct,
+        construct_id: str,
+        lambda_function: aws_lambda.Function,
+        interval: int,
+    ) -> None:
+        super().__init__(scope, construct_id)
+
+        seconds_per_minute = 60
+        assert seconds_per_minute % interval == 0, (
+            "A minute has to be evenly divisible by interval! (60 mod interval = 0)"
+        )
+
+        invocations_per_minute = int(seconds_per_minute / interval)
+        wait_state_duration = interval
+
+        wait_time_list = [
+            wait_state_duration if i < (invocations_per_minute - 1) else 0
+            for i in range(invocations_per_minute)
+        ]
+
+        state_machine_definition = stepfunctions.Pass(
+            scope=self,
+            id="wait-time-list",
+            comment="Sets up the number of invocations per minute",
+            result=stepfunctions.Result(value={"iterator": wait_time_list}),
+        )
+
+        invoke_loop = stepfunctions.Map(
+            scope=self,
+            id="invoke-loop",
+            comment="Invokes function and waits",
+            max_concurrency=1,
+            items_path="$.iterator",
+        )
+
+        invoke_loop.item_processor(
+            stepfunction_tasks.CallAwsService(
+                self,
+                "invoke-lambda-async",
+                action="invoke",
+                service="lambda",
+                iam_action="lambda:InvokeFunction",
+                iam_resources=[lambda_function.function_arn],
+                parameters={
+                    "FunctionName": lambda_function.function_arn,
+                    "InvocationType": "Event",
+                },
+                result_path=stepfunctions.JsonPath.DISCARD,  # Discard the output and pass on the input
+            ).next(
+                stepfunctions.Wait(
+                    self,
+                    "wait-until-next-iteration",
+                    time=stepfunctions.WaitTime.seconds_path("$"),
+                )
+            )
+        )
+
+        state_machine_definition.next(invoke_loop)
+
+        self.step_function = stepfunctions.StateMachine(
+            self,
+            id="sub-minute-trigger",
+            definition=state_machine_definition,
+            state_machine_name=lambda_function.function_name,
+            state_machine_type=stepfunctions.StateMachineType.STANDARD,
+            timeout=Duration.seconds(60),
+            logs=stepfunctions.LogOptions(
+                destination=aws_logs.LogGroup(
+                    self,
+                    id="log-group-for-trigger",
+                    removal_policy=RemovalPolicy.DESTROY,
+                    retention=aws_logs.RetentionDays.ONE_DAY,
+                )
+            ),
+        )
 
 
 class EventBridgeConstruct(Construct):
@@ -56,10 +146,11 @@ class EventBridgeConstruct(Construct):
             vpc=vpc,
             environment=lambda_env,
             allow_public_subnet=True,
-            log_retention=aws_logs.RetentionDays.ONE_WEEK,
-            tracing=aws_lambda.Tracing.ACTIVE,
-            memory_size=1024,
-            timeout=Duration.minutes(1),
+            log_retention=aws_logs.RetentionDays.ONE_DAY,
+            memory_size=512,
+            timeout=Duration.seconds(10),
+            application_log_level_v2=aws_lambda.ApplicationLogLevel.ERROR,
+            logging_format=aws_lambda.LoggingFormat.JSON,
         )
 
         lambda_function.add_to_role_policy(
@@ -78,18 +169,37 @@ class EventBridgeConstruct(Construct):
 
         dlq = aws_sqs.Queue(self, "DLQ", queue_name="gtfs-realtime-etl-dlq")
 
-        target = aws_scheduler_targets_alpha.LambdaInvoke(
-            lambda_function,
-            dead_letter_queue=dlq,
-            max_event_age=Duration.minutes(15),
-            retry_attempts=0,
-        )
+        if etl_settings.schedule_seconds < 60:
+            step_function = SubMinuteStepFunctionConstruct(
+                self,
+                "SubMinuteLambdaStepFunction",
+                lambda_function,
+                etl_settings.schedule_seconds,
+            )
+
+            target = aws_scheduler_targets_alpha.StepFunctionsStartExecution(
+                state_machine=step_function.step_function,
+                dead_letter_queue=dlq,
+                max_event_age=Duration.minutes(15),
+                retry_attempts=0,
+            )
+        else:
+            target = aws_scheduler_targets_alpha.LambdaInvoke(
+                lambda_function,
+                dead_letter_queue=dlq,
+                max_event_age=Duration.minutes(15),
+                retry_attempts=0,
+            )
 
         aws_scheduler_alpha.Schedule(
             self,
             "Schedule",
             schedule=aws_scheduler_alpha.ScheduleExpression.rate(
-                Duration.minutes(etl_settings.schedule_mins)
+                Duration.seconds(
+                    60
+                    if etl_settings.schedule_seconds < 60
+                    else etl_settings.schedule_seconds
+                )
             ),
             target=target,
         )
