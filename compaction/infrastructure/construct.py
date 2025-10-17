@@ -9,6 +9,7 @@ import os
 from aws_cdk import (
     Duration,
     Size,
+    TimeZone,
     aws_lambda,
     aws_s3 as s3,
     aws_events as events,
@@ -16,6 +17,8 @@ from aws_cdk import (
     aws_iam as iam,
     aws_logs,
     aws_ec2,
+    aws_scheduler,
+    aws_scheduler_targets,
 )
 from constructs import Construct
 
@@ -27,7 +30,7 @@ class CompactionConstruct(Construct):
         self,
         scope: Construct,
         construct_id: str,
-        vpc: aws_ec2.Vpc,
+        vpc_id: str | None,
         stage: str,
         code_dir: str = "./",
         **kwargs,
@@ -37,6 +40,13 @@ class CompactionConstruct(Construct):
         destination_s3_bucket = s3.Bucket.from_bucket_name(
             self, "DestinationBucket", compaction_settings.destination_bucket
         )
+        
+        if vpc_id:
+            vpc = aws_ec2.Vpc.from_lookup(
+                self,
+                "VPC",
+                vpc_id=vpc_id,
+            )
 
         compactionFunction = aws_lambda.Function(
             self,
@@ -46,7 +56,7 @@ class CompactionConstruct(Construct):
                 path=os.path.abspath(code_dir),
                 file="compaction/runtime/Dockerfile",
             ),
-            vpc=vpc,
+            vpc=vpc if vpc_id else None,
             handler="handler.handler",
             timeout=Duration.minutes(15),
             ephemeral_storage_size=Size.mebibytes(2048),
@@ -69,26 +79,53 @@ class CompactionConstruct(Construct):
         )
         destination_s3_bucket.grant_read(compactionFunction)
         destination_s3_bucket.grant_write(compactionFunction)
-
-        # Uncomment to add EventBridge rule for standalone Lambda schedule
-        lambdaTriggerRule = events.Rule(
-            self,
-            "compactionRuleLambda",
-            enabled=True,
-            schedule=events.Schedule.rate(
-                Duration.days(int(compaction_settings.previous_days))
-            ),
+        
+        target_daily = aws_scheduler_targets.LambdaInvoke(
+            compactionFunction,
+            input=aws_scheduler.ScheduleTargetInput.from_object({
+                "s3_bucket": compaction_settings.destination_bucket,
+                "previous_days": int(compaction_settings.previous_days),
+                "timezone": compaction_settings.timezone,
+                "stage": stage,
+            }),
+            max_event_age=Duration.minutes(15),
+            retry_attempts=0,
         )
-
-        lambdaTriggerRule.add_target(
-            targets.LambdaFunction(
-                compactionFunction,
-                event=events.RuleTargetInput.from_object(
-                    {
-                        "s3_bucket": compaction_settings.destination_bucket,
-                        "duration": int(compaction_settings.previous_days),
-                        "timezone": compaction_settings.timezone,
-                    }
-                ),
-            )
+        
+        aws_scheduler.Schedule(
+            self,
+            "DailySchedule",
+            schedule=aws_scheduler.ScheduleExpression.cron(
+                time_zone=TimeZone.of(compaction_settings.timezone),
+                day="*",
+                hour="1",
+                minute="0",
+            ),
+            target=target_daily,
+        )
+        
+        target_monthly = aws_scheduler_targets.LambdaInvoke(
+            compactionFunction,
+            input=aws_scheduler.ScheduleTargetInput.from_object({
+                "s3_bucket": compaction_settings.destination_bucket,
+                "previous_months": int(compaction_settings.previous_months),
+                "timezone": compaction_settings.timezone,
+                "compact_to_now": False,
+                "stage": stage,
+            }),
+            max_event_age=Duration.minutes(15),
+            retry_attempts=0,
+        )
+        
+        aws_scheduler.Schedule(
+            self,
+            "MonthlySchedule",
+            schedule=aws_scheduler.ScheduleExpression.cron(
+                time_zone=TimeZone.of(compaction_settings.timezone),
+                day="1",
+                hour="1",
+                minute="0",
+                month="*",
+            ),
+            target=target_monthly,
         )

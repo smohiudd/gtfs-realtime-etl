@@ -117,7 +117,7 @@ class EventBridgeConstruct(Construct):
         self,
         scope: Construct,
         construct_id: str,
-        vpc: aws_ec2.Vpc,
+        vpc_id: str | None,
         stage: str,
         code_dir: str = "./",
     ) -> None:
@@ -128,11 +128,19 @@ class EventBridgeConstruct(Construct):
             "VEH_POSITION_URL": etl_settings.veh_position_url,
             "TIMEZONE": etl_settings.timezone,
             "DESTINATION_BUCKET": etl_settings.destination_bucket,
+            "STAGE": stage,
         }
 
         destination_bucket = aws_s3.Bucket.from_bucket_name(
             self, "DestinationBucket", etl_settings.destination_bucket
         )
+        
+        if vpc_id:
+            vpc = aws_ec2.Vpc.from_lookup(
+                self,
+                "VPC",
+                vpc_id=vpc_id,
+            )
 
         lambda_function = aws_lambda.Function(
             self,
@@ -143,7 +151,7 @@ class EventBridgeConstruct(Construct):
                 path=os.path.abspath(code_dir),
                 file="etl/runtime/Dockerfile",
             ),
-            vpc=vpc,
+            vpc=vpc if vpc_id else None,
             environment=lambda_env,
             allow_public_subnet=True,
             log_retention=aws_logs.RetentionDays.ONE_DAY,
@@ -167,7 +175,7 @@ class EventBridgeConstruct(Construct):
 
         destination_bucket.grant_write(lambda_function)
 
-        dlq = aws_sqs.Queue(self, "DLQ", queue_name="gtfs-realtime-etl-dlq")
+        dlq = aws_sqs.Queue(self, "DLQ", queue_name=f"gtfs-realtime-etl-dlq-{stage}")
 
         if etl_settings.schedule_seconds < 60:
             step_function = SubMinuteStepFunctionConstruct(

@@ -58,7 +58,7 @@ class VpcConstruct(Construct):
             )
 
             vpc_endpoints = {
-                "cloudwatch-logs": aws_ec2.InterfaceVpcEndpointAwsService.CLOUDWATCH_LOGS,
+                #"cloudwatch-logs": aws_ec2.InterfaceVpcEndpointAwsService.CLOUDWATCH_LOGS,
                 "s3": aws_ec2.GatewayVpcEndpointAwsService.S3,
             }
 

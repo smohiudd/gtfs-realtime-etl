@@ -16,6 +16,11 @@ class CompactionSettings(BaseSettings):
         1,
         description="Number of days to compact",
     )
+    
+    previous_months: int = Field(
+        1,
+        description="Number of months to compact",
+    )
 
     timezone: str = Field(
         "America/Edmonton",

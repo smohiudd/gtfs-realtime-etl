@@ -36,6 +36,7 @@ def handler(event, context):
     position_url = os.environ.get("VEH_POSITION_URL")
     timezone = os.environ.get("TIMEZONE")
     destination_bucket = os.environ.get("DESTINATION_BUCKET")
+    city_name = os.environ.get("STAGE")
 
     feed = gtfs_realtime_pb2.FeedMessage()
     try:
@@ -136,7 +137,7 @@ def handler(event, context):
         output_file,
         pa_table.schema,
         encoding=GeoParquetEncoding.WKB,
-        compression="uncompressed",
+        compression="snappy",
         generate_covering=True,
     )
     writer.write_table(pa_table)
@@ -145,7 +146,7 @@ def handler(event, context):
     logger.info(f"saved parquet file to {output_file}")
 
     latest_timestamp = dt.datetime.now(tz=ZoneInfo(timezone))
-    object_key = f"positions_raw/{latest_timestamp.strftime('%Y')}/{latest_timestamp.strftime('%m')}/{latest_timestamp.strftime('%d')}/{latest_timestamp.strftime('%H%M%S')}.parquet"
+    object_key = f"{city_name}/positions_raw/{latest_timestamp.strftime('%Y')}/{latest_timestamp.strftime('%m')}/{latest_timestamp.strftime('%d')}/{latest_timestamp.strftime('%H%M%S')}.parquet"
 
     try:
         logger.info("Uploading %s to bucket %s", object_key, destination_bucket)

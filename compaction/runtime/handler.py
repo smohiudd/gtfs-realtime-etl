@@ -8,6 +8,7 @@ import os
 import logging
 import boto3
 from datetime import timedelta, datetime
+from dateutil.relativedelta import relativedelta
 from zoneinfo import ZoneInfo
 
 import pyarrow.parquet as pq
@@ -38,6 +39,7 @@ def list_objects_in_s3(bucket, prefix):
             )
         else:
             response = s3.list_objects_v2(Bucket=bucket, Prefix=prefix)
+            
         contents.extend(response.get("Contents", []))
 
         if "NextContinuationToken" not in response:
@@ -52,23 +54,36 @@ def upload_object_to_s3(bucket, key, file_path):
     s3.upload_file(file_path, bucket, key)
 
 
-def merge_objects_from_s3(s3_bucket, date):
-    objects = list_objects_in_s3(
-        s3_bucket,
-        f"positions_raw/{date.strftime('%Y')}/{date.strftime('%m')}/{date.strftime('%d')}/",
-    )
-    if objects == "None":
-        print(
-            f"No objects found for {date.strftime('%Y')}/{date.strftime('%m')}/{date.strftime('%d')}"
+def merge_objects_from_s3(s3_bucket, date, period, city_name):
+    if period == "days":
+        objects = list_objects_in_s3(
+            s3_bucket,
+            f"{city_name}/positions_raw/{date.strftime('%Y')}/{date.strftime('%m')}/{date.strftime('%d')}/",
         )
-        return
+        
+        if objects == "None":
+            print(
+                f"No objects found for {date.strftime('%Y')}/{date.strftime('%m')}/{date.strftime('%d')}"
+            )
+            return
+    elif period == "months":
+        objects = list_objects_in_s3(
+            s3_bucket,
+            f"{city_name}/positions/{date.strftime('%Y')}/{date.strftime('%m')}/",
+        )
+
+        if objects == "None":
+            print(
+                f"No objects found for {date.strftime('%Y')}/{date.strftime('%m')}"
+            )
+            return
 
     s3_uris = []
     for object in objects:
         s3_uris.append(f"{s3_bucket}/{object['Key']}")
 
     print(
-        f"Found {len(s3_uris)} objects for {date.strftime('%Y')}/{date.strftime('%m')}/{date.strftime('%d')}"
+        f"Found {len(s3_uris)} objects"
     )
 
     metadata = pq.read_metadata(
@@ -109,19 +124,34 @@ def merge_objects_from_s3(s3_bucket, date):
     # loop through tmp and upload to s3
     for file in os.listdir("/tmp"):
         if file.endswith(".parquet"):
+            if period == "days":
+                s3_key = f"{city_name}/positions/{date.strftime('%Y')}/{date.strftime('%m')}/{date.strftime('%d')}/{file}"
+            elif period == "months":
+                s3_key = f"{city_name}/positions/{date.strftime('%Y')}/{date.strftime('%m')}/{file}"
             upload_object_to_s3(
                 s3_bucket,
-                f"positions/{date.strftime('%Y')}/{date.strftime('%m')}/{date.strftime('%d')}/{file}",
+                s3_key,
                 f"/tmp/{file}",
             )
             print(f"Uploaded {file} to {s3_bucket}")
 
 
-def get_dates_in_range(duration, timezone):
-    start_date = datetime.now() - timedelta(days=duration)
+def get_dates_in_range(duration, timezone, period, compact_to_now):
     dates = []
+    
+    if period == "days":
+        start_date = datetime.now(ZoneInfo(timezone)) - relativedelta(days=duration)
+    elif period == "months":
+        start_date = datetime.now(ZoneInfo(timezone)) - relativedelta(months=duration)
+
+    if compact_to_now:
+        duration+=1
+        
     for n in range(duration):
-        date = start_date + timedelta(days=n)
+        if period == "days":
+            date = start_date + relativedelta(days=n)
+        elif period == "months":
+            date = start_date + relativedelta(months=n)
         dates.append(date)
     return dates
 
@@ -132,13 +162,23 @@ def handler(event, context):
     """
 
     s3_bucket = event.get("s3_bucket")
-    duration = event.get("duration")
+    previous_days = event.get("previous_days")
+    previous_months = event.get("previous_months")
     timezone = event.get("timezone")
+    compact_to_now = event.get("compact_to_now")
+    city_name = event.get("stage")
+    
+    if previous_days:
+        duration = previous_days
+        period = "days"
+    elif previous_months:
+        duration = previous_months
+        period = "months"
 
-    dates = get_dates_in_range(int(duration), timezone)
+    dates = get_dates_in_range(int(duration), timezone, period, compact_to_now)
 
     for date in dates:
-        merge_objects_from_s3(s3_bucket, date)
+        merge_objects_from_s3(s3_bucket, date, period, city_name)
         print(
             f"Compacted {date.strftime('%Y')}/{date.strftime('%m')}/{date.strftime('%d')} of {len(dates)}"
         )

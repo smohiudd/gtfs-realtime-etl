@@ -21,14 +21,27 @@ class GTFSETLStack(Stack):
         super().__init__(scope, construct_id, **kwargs)
 
 
+class VPCStack(Stack):
+    """CDK stack for the gtfs-realtime-etl vpc stack."""
+
+    def __init__(self, scope: Construct, construct_id: str, **kwargs) -> None:
+        """."""
+        super().__init__(scope, construct_id, **kwargs)
+
 gtfs_etl_stack = GTFSETLStack(
     app,
     f"{gtfs_app_settings.app_name}-{gtfs_app_settings.stage}",
     env=gtfs_app_settings.cdk_env(),
 )
 
+vpc_stack = VPCStack(
+    app,
+    "gtfs-etl-vpc",
+    env=gtfs_app_settings.cdk_env(),
+)
+
 vpc = VpcConstruct(
-    gtfs_etl_stack,
+    vpc_stack,
     "network",
     vpc_id=gtfs_app_settings.vpc_id,
 )
@@ -36,14 +49,14 @@ vpc = VpcConstruct(
 gtfs_etl = EventBridgeConstruct(
     gtfs_etl_stack,
     "gtfs-etl",
-    vpc=vpc.vpc,
+    vpc_id=gtfs_app_settings.vpc_id if gtfs_app_settings.vpc_id else None,
     stage=gtfs_app_settings.stage,
 )
 
 compaction = CompactionConstruct(
     gtfs_etl_stack,
     "compaction",
-    vpc=vpc.vpc,
+    vpc_id=gtfs_app_settings.vpc_id if gtfs_app_settings.vpc_id else None,
     stage=gtfs_app_settings.stage,
 )
 

@@ -45,6 +45,11 @@ class gtfsAppSettings(BaseSettings):
             "subnets will be provisioned."
         ),
     )
+    
+    deploy_vpc: bool = Field(
+        False,
+        description="Whether to deploy a new VPC with public and private subnets.",
+    )
 
     subnet_ids: Optional[List[AwsSubnetId]] = Field(  # type: ignore
         [],
