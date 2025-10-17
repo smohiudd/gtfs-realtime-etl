@@ -129,6 +129,8 @@ class EventBridgeConstruct(Construct):
             "TIMEZONE": etl_settings.timezone,
             "DESTINATION_BUCKET": etl_settings.destination_bucket,
             "STAGE": stage,
+            "API_KEY": etl_settings.api_key if etl_settings.api_key else "",
+            "API_KEY_HEADER": etl_settings.api_key_header if etl_settings.api_key_header else "",
         }
 
         destination_bucket = aws_s3.Bucket.from_bucket_name(

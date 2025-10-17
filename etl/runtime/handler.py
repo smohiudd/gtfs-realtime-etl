@@ -37,10 +37,15 @@ def handler(event, context):
     timezone = os.environ.get("TIMEZONE")
     destination_bucket = os.environ.get("DESTINATION_BUCKET")
     city_name = os.environ.get("STAGE")
+    api_key = os.environ.get("API_KEY")
+    api_key_header = os.environ.get("API_KEY_HEADER")
 
     feed = gtfs_realtime_pb2.FeedMessage()
     try:
-        response = requests.get(position_url, timeout=5)
+        if not api_key_header or not api_key:
+            response = requests.get(position_url, timeout=5)
+        else:
+            response = requests.get(position_url, timeout=5, headers={api_key_header: api_key})
         response.raise_for_status()
     except requests.RequestException as exc:
         logger.exception("Failed to fetch vehicle positions from %s", position_url)

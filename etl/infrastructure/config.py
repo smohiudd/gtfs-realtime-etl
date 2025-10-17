@@ -2,6 +2,7 @@
 
 from pydantic import Field
 from pydantic_settings import BaseSettings
+from typing import Optional
 
 
 class ETLSettings(BaseSettings):
@@ -25,6 +26,16 @@ class ETLSettings(BaseSettings):
     destination_bucket: str = Field(
         None,
         description="S3 bucket to upload the realtime data to",
+    )
+
+    api_key: Optional[str] = Field(
+        None,
+        description="API key to access the realtime data",
+    )
+    
+    api_key_header: Optional[str] = Field(
+        None,
+        description="Header name to access the realtime data",
     )
 
     class Config:
