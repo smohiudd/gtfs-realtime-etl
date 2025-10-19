@@ -44,6 +44,3 @@ class ETLSettings(BaseSettings):
         env_file = ".env"
         env_prefix = "GTFS_RT_EVENT_"
         extra = "allow"
-
-
-etl_settings = ETLSettings()

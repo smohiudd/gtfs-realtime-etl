@@ -20,7 +20,7 @@ from aws_cdk import (
 )
 from constructs import Construct
 
-from .config import etl_settings
+from .config import ETLSettings
 
 
 class SubMinuteStepFunctionConstruct(Construct):
@@ -123,6 +123,12 @@ class EventBridgeConstruct(Construct):
     ) -> None:
         """Initialized construct."""
         super().__init__(scope, construct_id)
+        
+        env_file = self.node.try_get_context("env_file")
+        if env_file:
+            etl_settings = ETLSettings(_env_file=f"envs/{env_file}.env")
+        else:
+            etl_settings = ETLSettings()
 
         lambda_env = {
             "VEH_POSITION_URL": etl_settings.veh_position_url,

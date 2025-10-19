@@ -79,6 +79,10 @@ def handler(event, context):
 
     logger.info(f"Discovered {len(records)} vehicle position records")
 
+    if not records:
+        logger.info("No vehicle position records to process; skipping parquet upload")
+        return {"records": 0}
+
     schema = pa.schema(
         [
             pa.field("trip_id", pa.string()),

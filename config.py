@@ -76,6 +76,3 @@ class gtfsAppSettings(BaseSettings):
 
         env_file = ".env"
         extra = "allow"
-
-
-gtfs_app_settings = gtfsAppSettings()

@@ -22,7 +22,7 @@ from aws_cdk import (
 )
 from constructs import Construct
 
-from .config import compaction_settings
+from .config import CompactionSettings
 
 
 class CompactionConstruct(Construct):
@@ -36,6 +36,12 @@ class CompactionConstruct(Construct):
         **kwargs,
     ) -> None:
         super().__init__(scope, construct_id, **kwargs)
+        
+        env_file = self.node.try_get_context("env_file")
+        if env_file:
+            compaction_settings = CompactionSettings(_env_file=f"envs/{env_file}.env")
+        else:
+            compaction_settings = CompactionSettings()
 
         destination_s3_bucket = s3.Bucket.from_bucket_name(
             self, "DestinationBucket", compaction_settings.destination_bucket

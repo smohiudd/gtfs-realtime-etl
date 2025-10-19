@@ -34,5 +34,3 @@ class CompactionSettings(BaseSettings):
         env_prefix = "GTFS_RT_EVENT_"
         extra = "allow"
 
-
-compaction_settings = CompactionSettings()
