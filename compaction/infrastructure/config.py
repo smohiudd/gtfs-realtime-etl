@@ -16,10 +16,15 @@ class CompactionSettings(BaseSettings):
         1,
         description="Number of days to compact",
     )
-    
+
     previous_months: int = Field(
         1,
         description="Number of months to compact",
+    )
+
+    memory_size: int = Field(
+        2048,
+        description="Memory size in MB",
     )
 
     timezone: str = Field(
@@ -33,4 +38,3 @@ class CompactionSettings(BaseSettings):
         env_file = ".env"
         env_prefix = "GTFS_RT_EVENT_"
         extra = "allow"
-

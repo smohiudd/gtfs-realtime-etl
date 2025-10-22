@@ -139,6 +139,7 @@ def handler(event, context):
     wkb_array = ga.as_wkb(ga.with_crs(points, ga.OGC_CRS84))
 
     pa_table = pa_table.append_column(geom_field, wkb_array)
+    pa_table = pa_table.drop_columns(['latitude','longitude'])
 
     output_file = "/tmp/positions.parquet"
 
@@ -155,7 +156,11 @@ def handler(event, context):
     logger.info(f"saved parquet file to {output_file}")
 
     latest_timestamp = dt.datetime.now(tz=ZoneInfo(timezone))
-    object_key = f"{city_name}/positions_raw/{latest_timestamp.strftime('%Y')}/{latest_timestamp.strftime('%m')}/{latest_timestamp.strftime('%d')}/{latest_timestamp.strftime('%H%M%S')}.parquet"
+    object_key = (
+        f"{city_name}/positions_raw/year={latest_timestamp.strftime('%Y')}/"
+        f"month={latest_timestamp.strftime('%m')}/day={latest_timestamp.strftime('%d')}/"
+        f"{latest_timestamp.strftime('%H%M%S')}.parquet"
+    )
 
     try:
         logger.info("Uploading %s to bucket %s", object_key, destination_bucket)

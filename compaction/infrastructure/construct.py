@@ -36,7 +36,7 @@ class CompactionConstruct(Construct):
         **kwargs,
     ) -> None:
         super().__init__(scope, construct_id, **kwargs)
-        
+
         env_file = self.node.try_get_context("env_file")
         if env_file:
             compaction_settings = CompactionSettings(_env_file=f"envs/{env_file}.env")
@@ -46,7 +46,7 @@ class CompactionConstruct(Construct):
         destination_s3_bucket = s3.Bucket.from_bucket_name(
             self, "DestinationBucket", compaction_settings.destination_bucket
         )
-        
+
         if vpc_id:
             vpc = aws_ec2.Vpc.from_lookup(
                 self,
@@ -66,8 +66,7 @@ class CompactionConstruct(Construct):
             handler="handler.handler",
             timeout=Duration.minutes(15),
             ephemeral_storage_size=Size.mebibytes(2048),
-            memory_size=2048,
-            tracing=aws_lambda.Tracing.ACTIVE,
+            memory_size=compaction_settings.memory_size,
             log_retention=aws_logs.RetentionDays.ONE_MONTH,
         )
 
@@ -85,19 +84,21 @@ class CompactionConstruct(Construct):
         )
         destination_s3_bucket.grant_read(compactionFunction)
         destination_s3_bucket.grant_write(compactionFunction)
-        
+
         target_daily = aws_scheduler_targets.LambdaInvoke(
             compactionFunction,
-            input=aws_scheduler.ScheduleTargetInput.from_object({
-                "s3_bucket": compaction_settings.destination_bucket,
-                "previous_days": int(compaction_settings.previous_days),
-                "timezone": compaction_settings.timezone,
-                "stage": stage,
-            }),
+            input=aws_scheduler.ScheduleTargetInput.from_object(
+                {
+                    "s3_bucket": compaction_settings.destination_bucket,
+                    "previous_days": int(compaction_settings.previous_days),
+                    "timezone": compaction_settings.timezone,
+                    "stage": stage,
+                }
+            ),
             max_event_age=Duration.minutes(15),
             retry_attempts=0,
         )
-        
+
         aws_scheduler.Schedule(
             self,
             "DailySchedule",
@@ -109,20 +110,22 @@ class CompactionConstruct(Construct):
             ),
             target=target_daily,
         )
-        
+
         target_monthly = aws_scheduler_targets.LambdaInvoke(
             compactionFunction,
-            input=aws_scheduler.ScheduleTargetInput.from_object({
-                "s3_bucket": compaction_settings.destination_bucket,
-                "previous_months": int(compaction_settings.previous_months),
-                "timezone": compaction_settings.timezone,
-                "compact_to_now": False,
-                "stage": stage,
-            }),
+            input=aws_scheduler.ScheduleTargetInput.from_object(
+                {
+                    "s3_bucket": compaction_settings.destination_bucket,
+                    "previous_months": int(compaction_settings.previous_months),
+                    "timezone": compaction_settings.timezone,
+                    "compact_to_now": False,
+                    "stage": stage,
+                }
+            ),
             max_event_age=Duration.minutes(15),
             retry_attempts=0,
         )
-        
+
         aws_scheduler.Schedule(
             self,
             "MonthlySchedule",

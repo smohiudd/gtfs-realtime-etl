@@ -14,6 +14,7 @@ from zoneinfo import ZoneInfo
 import pyarrow.parquet as pq
 
 from pyarrow import fs
+import pyarrow.dataset as ds
 
 
 s3 = boto3.client("s3", region_name=os.environ.get("AWS_DEFAULT_REGION"))
@@ -39,7 +40,7 @@ def list_objects_in_s3(bucket, prefix):
             )
         else:
             response = s3.list_objects_v2(Bucket=bucket, Prefix=prefix)
-            
+
         contents.extend(response.get("Contents", []))
 
         if "NextContinuationToken" not in response:
@@ -58,9 +59,9 @@ def merge_objects_from_s3(s3_bucket, date, period, city_name):
     if period == "days":
         objects = list_objects_in_s3(
             s3_bucket,
-            f"{city_name}/positions_raw/{date.strftime('%Y')}/{date.strftime('%m')}/{date.strftime('%d')}/",
+            f"{city_name}/positions_raw/year={date.strftime('%Y')}/month={date.strftime('%m')}/day={date.strftime('%d')}/",
         )
-        
+
         if objects == "None":
             print(
                 f"No objects found for {date.strftime('%Y')}/{date.strftime('%m')}/{date.strftime('%d')}"
@@ -69,46 +70,52 @@ def merge_objects_from_s3(s3_bucket, date, period, city_name):
     elif period == "months":
         objects = list_objects_in_s3(
             s3_bucket,
-            f"{city_name}/positions/{date.strftime('%Y')}/{date.strftime('%m')}/",
+            f"{city_name}/positions/year={date.strftime('%Y')}/month={date.strftime('%m')}/",
         )
 
         if objects == "None":
-            print(
-                f"No objects found for {date.strftime('%Y')}/{date.strftime('%m')}"
-            )
+            print(f"No objects found for {date.strftime('%Y')}/{date.strftime('%m')}")
             return
 
     s3_uris = []
     for object in objects:
         s3_uris.append(f"{s3_bucket}/{object['Key']}")
 
-    print(
-        f"Found {len(s3_uris)} objects"
-    )
+    print(f"Found {len(s3_uris)} objects")
 
     metadata = pq.read_metadata(
         s3_uris[0], filesystem=s3fs
     ).metadata  # get the file level metadata since GeoParquetWriter doesn't write table level metadata
-
-    dataset = (
-        pq.ParquetDataset(
-            s3_uris,
-            filesystem=s3fs,
-        )
-        .read()
-        .sort_by("geohash")
+    
+    schema =  pq.read_schema(
+    s3_uris[0],
+    filesystem=s3fs,
     )
+    
+    schema = schema.with_metadata(metadata)
 
-    schema = dataset.schema.with_metadata(metadata)
+    dataset = ds.dataset(
+        s3_uris,
+        filesystem=s3fs,
+        format="parquet",
+        schema=schema,
+    )
 
     # https://duckdb.org/docs/stable/guides/performance/file_formats.html
     min_rows_per_group = 61440
     max_rows_per_group = 122880
+    
+    parquet_format = ds.ParquetFileFormat()
+    parquet_write_options = parquet_format.make_write_options(
+        compression="zstd",
+        compression_level=15,
+    )
 
-    pq.write_to_dataset(
+    ds.write_dataset(
         dataset,
         "/tmp",
-        schema=schema,
+        format="parquet",
+        file_options=parquet_write_options,
         basename_template=f"positions_{{i}}.parquet",
         min_rows_per_group=min_rows_per_group,
         max_rows_per_group=max_rows_per_group,
@@ -117,17 +124,21 @@ def merge_objects_from_s3(s3_bucket, date, period, city_name):
         preserve_order=True,
         filesystem=fs.LocalFileSystem(),
         create_dir=False,
-        compression="zstd",
-        compression_level=3,
     )
 
     # loop through tmp and upload to s3
     for file in os.listdir("/tmp"):
         if file.endswith(".parquet"):
             if period == "days":
-                s3_key = f"{city_name}/positions/{date.strftime('%Y')}/{date.strftime('%m')}/{date.strftime('%d')}/{file}"
+                s3_key = (
+                    f"{city_name}/positions/year={date.strftime('%Y')}/"
+                    f"month={date.strftime('%m')}/day={date.strftime('%d')}/{file}"
+                )
             elif period == "months":
-                s3_key = f"{city_name}/positions/{date.strftime('%Y')}/{date.strftime('%m')}/{file}"
+                s3_key = (
+                    f"{city_name}/positions/year={date.strftime('%Y')}/"
+                    f"month={date.strftime('%m')}/{file}"
+                )
             upload_object_to_s3(
                 s3_bucket,
                 s3_key,
@@ -138,15 +149,15 @@ def merge_objects_from_s3(s3_bucket, date, period, city_name):
 
 def get_dates_in_range(duration, timezone, period, compact_to_now):
     dates = []
-    
+
     if period == "days":
         start_date = datetime.now(ZoneInfo(timezone)) - relativedelta(days=duration)
     elif period == "months":
         start_date = datetime.now(ZoneInfo(timezone)) - relativedelta(months=duration)
 
     if compact_to_now:
-        duration+=1
-        
+        duration += 1
+
     for n in range(duration):
         if period == "days":
             date = start_date + relativedelta(days=n)
@@ -167,7 +178,7 @@ def handler(event, context):
     timezone = event.get("timezone")
     compact_to_now = event.get("compact_to_now")
     city_name = event.get("stage")
-    
+
     if previous_days:
         duration = previous_days
         period = "days"
