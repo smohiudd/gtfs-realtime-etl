@@ -1,10 +1,10 @@
 ##  GTFS-REALTIME-ETL
 
-Infrastructure as Code (IAC) to ingest [GTFS Realtime](https://gtfs.org/documentation/realtime/reference/#message-vehicleposition) vehicle position data into PostGIS database. 
+Infrastructure as Code (IAC) to write [GTFS Realtime](https://gtfs.org/documentation/realtime/reference/#message-vehicleposition) vehicle position data as GeoParquet files to S3. 
 
 ## Deployment
 
-This project uses AWS CDK to deploy all resource required to ingest GTFS Realtime data into a database on a given schedule including a VPC, Event Bridge Scheduler, Lambda Function and RDS. 
+This project uses AWS CDK to deploy all resource required to write GTFS Realtime GeoParquet files to S3 on a given schedule including a VPC, Event Bridge Scheduler, Step Function and Lambda Functions. 
 
 ### Install CDK
 

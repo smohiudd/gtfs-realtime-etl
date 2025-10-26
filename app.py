@@ -1,56 +1,74 @@
 from aws_cdk import (
     App,
     Stack,
+    Tags,
 )
 from constructs import Construct
 
-from config import gtfs_app_settings
-from database.infrastructure.construct import GTFSRdsConstruct
-from event_bridge.infrastructure.construct import EventBridgeConstruct
+from config import gtfsAppSettings
+from etl.infrastructure.construct import EventBridgeConstruct
+from compaction.infrastructure.construct import CompactionConstruct
 from network.infrastructure.construct import VpcConstruct
 
 app = App()
+env_file = app.node.try_get_context("env_file")
+if env_file:
+    settings = gtfsAppSettings(_env_file=f"envs/{env_file}.env")
+else:  
+    settings = gtfsAppSettings()
 
-
-class GTFSStack(Stack):
-    """CDK stack for the gtfs-realtime-etl stack."""
+class GTFSETLStack(Stack):
+    """CDK stack for the gtfs-realtime-etl etl stack."""
 
     def __init__(self, scope: Construct, construct_id: str, **kwargs) -> None:
         """."""
         super().__init__(scope, construct_id, **kwargs)
 
 
-gtfs_stack = GTFSStack(
+class VPCStack(Stack):
+    """CDK stack for the gtfs-realtime-etl vpc stack."""
+
+    def __init__(self, scope: Construct, construct_id: str, **kwargs) -> None:
+        """."""
+        super().__init__(scope, construct_id, **kwargs)
+
+gtfs_etl_stack = GTFSETLStack(
     app,
-    f"{gtfs_app_settings.app_name}-{gtfs_app_settings.stage_name()}",
-    env=gtfs_app_settings.cdk_env(),
+    f"{settings.app_name}-{settings.stage}",
+    env=settings.cdk_env(),
 )
 
-if gtfs_app_settings.vpc_id:
-    vpc = VpcConstruct(
-        gtfs_stack,
-        "network",
-        vpc_id=gtfs_app_settings.vpc_id,
-        stage=gtfs_app_settings.stage_name(),
-    )
-else:
-    vpc = VpcConstruct(gtfs_stack, "network", stage=gtfs_app_settings.stage_name())
-
-
-gtfs_database = GTFSRdsConstruct(
-    gtfs_stack,
-    "gtfs-database",
-    vpc=vpc.vpc,
-    subnet_ids=gtfs_app_settings.subnet_ids,
-    stage=gtfs_app_settings.stage_name(),
+vpc_stack = VPCStack(
+    app,
+    "gtfs-etl-vpc",
+    env=settings.cdk_env(),
 )
 
-event_bridge = EventBridgeConstruct(
-    gtfs_stack,
-    "gtfs-event-bridge",
-    stage=gtfs_app_settings.stage_name(),
-    database=gtfs_database,
-    vpc=vpc.vpc,
+vpc = VpcConstruct(
+    vpc_stack,
+    "network",
+    vpc_id=settings.vpc_id,
 )
+
+gtfs_etl = EventBridgeConstruct(
+    gtfs_etl_stack,
+    "gtfs-etl",
+    vpc_id=settings.vpc_id if settings.vpc_id else None,
+    stage=settings.stage,
+)
+
+compaction = CompactionConstruct(
+    gtfs_etl_stack,
+    "compaction",
+    vpc_id=settings.vpc_id if settings.vpc_id else None,
+    stage=settings.stage,
+)
+
+for key, value in {
+    "Project": settings.app_name,
+    "Stack": settings.stage_name(),
+}.items():
+    if value:
+        Tags.of(app).add(key=key, value=value)
 
 app.synth()

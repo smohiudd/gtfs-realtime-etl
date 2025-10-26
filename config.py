@@ -24,12 +24,17 @@ class gtfsAppSettings(BaseSettings):
         ),
     )
 
+    region: str = Field(
+        "us-west-2",
+        description="AWS region",
+    )
+
     cdk_default_account: Optional[str] = Field(
-        None,
+        "539042711016",
         description="When deploying from a local machine the AWS account id is required to deploy to an exiting VPC",
     )
     cdk_default_region: Optional[str] = Field(
-        None,
+        "us-west-2",
         description="When deploying from a local machine the AWS region id is required to deploy to an exiting VPC",
     )
 
@@ -39,6 +44,11 @@ class gtfsAppSettings(BaseSettings):
             "Resource identifier of VPC, if none a new VPC with public and private "
             "subnets will be provisioned."
         ),
+    )
+    
+    deploy_vpc: bool = Field(
+        False,
+        description="Whether to deploy a new VPC with public and private subnets.",
     )
 
     subnet_ids: Optional[List[AwsSubnetId]] = Field(  # type: ignore
@@ -66,6 +76,3 @@ class gtfsAppSettings(BaseSettings):
 
         env_file = ".env"
         extra = "allow"
-
-
-gtfs_app_settings = gtfsAppSettings()

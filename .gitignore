@@ -122,9 +122,10 @@ celerybeat.pid
 *.sage.py
 
 # Environments
-.env
+.env*
 .venv
 env/
+envs/
 venv/
 ENV/
 env.bak/
@@ -164,4 +165,5 @@ cython_debug/
 ## misc 
 cdk.out/
 cdk.context.json
-notebooks
+notebooks/draft_notebooks/
+notebooks/data/
