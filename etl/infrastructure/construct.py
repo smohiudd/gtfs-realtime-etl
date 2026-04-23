@@ -137,6 +137,7 @@ class EventBridgeConstruct(Construct):
             "STAGE": stage,
             "API_KEY": etl_settings.api_key if etl_settings.api_key else "",
             "API_KEY_HEADER": etl_settings.api_key_header if etl_settings.api_key_header else "",
+            "API_KEY_QUERY_PARAM": etl_settings.api_key_query_param if etl_settings.api_key_query_param else "",
         }
 
         destination_bucket = aws_s3.Bucket.from_bucket_name(

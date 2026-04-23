@@ -132,7 +132,7 @@ class CompactionConstruct(Construct):
             schedule=aws_scheduler.ScheduleExpression.cron(
                 time_zone=TimeZone.of(compaction_settings.timezone),
                 day="1",
-                hour="1",
+                hour="2",
                 minute="0",
                 month="*",
             ),

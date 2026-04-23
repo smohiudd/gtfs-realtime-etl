@@ -39,13 +39,16 @@ def handler(event, context):
     city_name = os.environ.get("STAGE")
     api_key = os.environ.get("API_KEY")
     api_key_header = os.environ.get("API_KEY_HEADER")
+    api_key_query_param = os.environ.get("API_KEY_QUERY_PARAM")
 
     feed = gtfs_realtime_pb2.FeedMessage()
     try:
-        if not api_key_header or not api_key:
-            response = requests.get(position_url, timeout=5)
-        else:
+        if api_key_header and api_key:
             response = requests.get(position_url, timeout=5, headers={api_key_header: api_key})
+        elif api_key_query_param and api_key:
+            response = requests.get(position_url, timeout=5, params={api_key_query_param: api_key})
+        else:
+            response = requests.get(position_url, timeout=5)
         response.raise_for_status()
     except requests.RequestException as exc:
         logger.exception("Failed to fetch vehicle positions from %s", position_url)
