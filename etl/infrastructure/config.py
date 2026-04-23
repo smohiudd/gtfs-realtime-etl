@@ -37,6 +37,11 @@ class ETLSettings(BaseSettings):
         None,
         description="Header name to access the realtime data",
     )
+    
+    api_key_query_param: Optional[str] = Field(
+        None,
+        description="Query parameter name to access the realtime data",
+    )
 
     class Config:
         """model config."""
