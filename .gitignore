@@ -167,3 +167,4 @@ cdk.out/
 cdk.context.json
 notebooks/draft_notebooks/
 notebooks/data/
+notebooks/images/
